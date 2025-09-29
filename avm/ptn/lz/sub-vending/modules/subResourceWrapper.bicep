@@ -501,6 +501,13 @@ var nsgArrayFormatted = !empty(additionalVirtualNetworks)
     ))
   : []
 
+// Validate ipamPoolPrefixLength if IPAM address space is used
+var ipamNumberOfAddresses = contains(virtualNetworkAddressSpace, '/Microsoft.Network/networkManagers/') && ipamPoolPrefixLength == null
+  ? fail('virtualNetworkAddressSpace is using IPAM address spaces, therefore ipamPoolPrefixLength must be provided.')
+  : !contains(virtualNetworkAddressSpace, '/Microsoft.Network/networkManagers/')
+      ? null
+      : getCidrHostCount(ipamPoolPrefixLength!)
+
 var allVirtualNetworks = (virtualNetworkEnabled && !empty(virtualNetworkName) && !empty(virtualNetworkAddressSpace) && !empty(virtualNetworkLocation) && !empty(virtualNetworkResourceGroupName))
   ? concat(
       [
@@ -635,9 +642,7 @@ module createLzVnet 'br/public:avm/res/network/virtual-network:0.7.0' = if (virt
     tags: virtualNetworkTags
     location: virtualNetworkLocation
     addressPrefixes: virtualNetworkAddressSpace
-    ipamPoolNumberOfIpAddresses: contains(virtualNetworkAddressSpace[0], '/Microsoft.Network/networkManagers/')
-      ? getCidrHostCount(ipamPoolPrefixLength!)
-      : null
+    ipamPoolNumberOfIpAddresses: ipamNumberOfAddresses
     dnsServers: virtualNetworkDnsServers
     ddosProtectionPlanResourceId: virtualNetworkDdosPlanResourceId
     peerings: (virtualNetworkEnabled && virtualNetworkPeeringEnabled && !empty(hubVirtualNetworkResourceIdChecked) && !empty(virtualNetworkName) && !empty(virtualNetworkAddressSpace) && !empty(virtualNetworkLocation) && !empty(virtualNetworkResourceGroupName))
