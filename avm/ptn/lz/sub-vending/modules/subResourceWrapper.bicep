@@ -24,7 +24,7 @@ param subscriptionManagementGroupAssociationEnabled bool = true
 param subscriptionManagementGroupId string = ''
 
 @sys.description('An object of tag key/value pairs to be appended to a subscription. NOTE: Tags will only be overwriten if existing tag exists with same key; values provided here win.')
-param subscriptionTags object = {}
+param subscriptionTags keyValuePairType = {}
 
 @sys.description('Whether to create a virtual network or not.')
 param virtualNetworkEnabled bool = false
@@ -50,10 +50,15 @@ param virtualNetworkLocation string = deployment().location
 param virtualNetworkName string = ''
 
 @sys.description('An object of tag key/value pairs to be set on the Virtual Network that is created. NOTE: Tags will be overwritten on resoruce if any exist already.')
-param virtualNetworkTags object = {}
+param virtualNetworkTags keyValuePairType = {}
 
 @sys.description('The address space of the virtual network, supplied as multiple CIDR blocks, e.g. `["10.0.0.0/16","172.16.0.0/12"]`')
 param virtualNetworkAddressSpace string[] = []
+
+@sys.description('Optional. The prefix length (e.g., 16, 24) for the IPAM pool to calculate IP address allocation count.')
+@minValue(8)
+@maxValue(30)
+param ipamPoolPrefixLength int?
 
 @sys.description('The subnets of the Virtual Network that will be created by this module.')
 param virtualNetworkSubnets subnetType[] = []
@@ -630,6 +635,9 @@ module createLzVnet 'br/public:avm/res/network/virtual-network:0.7.0' = if (virt
     tags: virtualNetworkTags
     location: virtualNetworkLocation
     addressPrefixes: virtualNetworkAddressSpace
+    ipamPoolNumberOfIpAddresses: contains(virtualNetworkAddressSpace[0], '/Microsoft.Network/networkManagers/')
+      ? getCidrHostCount(ipamPoolPrefixLength!)
+      : null
     dnsServers: virtualNetworkDnsServers
     ddosProtectionPlanResourceId: virtualNetworkDdosPlanResourceId
     peerings: (virtualNetworkEnabled && virtualNetworkPeeringEnabled && !empty(hubVirtualNetworkResourceIdChecked) && !empty(virtualNetworkName) && !empty(virtualNetworkAddressSpace) && !empty(virtualNetworkLocation) && !empty(virtualNetworkResourceGroupName))
@@ -1730,6 +1738,9 @@ module createAdditionalVnets 'br/public:avm/res/network/virtual-network:0.7.0' =
     params: {
       name: vnet.name
       addressPrefixes: vnet.addressPrefixes
+      ipamPoolNumberOfIpAddresses: contains(vnet.addressPrefixes[0], '/Microsoft.Network/networkManagers/')
+        ? getCidrHostCount(vnet.ipamPoolPrefixLength)
+        : null
       subnets: [
         for subnet in (vnet.?subnets ?? []): {
           name: subnet.name
@@ -2383,3 +2394,49 @@ type routeType = {
     nextHopIpAddress: string?
   }
 }
+
+@description('The key value pair type.')
+type keyValuePairType = {
+  *: string
+}
+
+// Functions to get number of hosts in a CIDR prefix
+@export()
+@description('Returns the number of hosts available for a given CIDR prefix.')
+func getCidrHostCounts() keyValuePairType => {
+  '1': '2147483648' // /1 (2,147,483,648 addresses)
+  '2': '1073741824' // /2 (1,073,741,824 addresses)
+  '3': '536870912' // /3 (536,870,912 addresses)
+  '4': '268435456' // /4 (268,435,456 addresses)
+  '5': '134217728' // /5 (134,217,728 addresses)
+  '6': '67108864' // /6 (67,108,864 addresses)
+  '7': '33554432' // /7 (33,554,432 addresses)
+  '8': '16777216' // /8 (16,777,216 addresses)
+  '9': '8388608' // /9 (8,388,608 addresses)
+  '10': '4194304' // /10 (4,194,304 addresses)
+  '11': '2097152' // /11 (2,097,152 addresses)
+  '12': '1048576' // /12 (1,048,576 addresses)
+  '13': '524288' // /13 (524,288 addresses)
+  '14': '262144' // /14 (262,144 addresses)
+  '15': '131072' // /15 (131,072 addresses)
+  '16': '65536' // /16 (65,536 addresses)
+  '17': '32768' // /17 (32,768 addresses)
+  '18': '16384' // /18 (16,384 addresses)
+  '19': '8192' // /19 (8,192 addresses)
+  '20': '4096' // /20 (4,096 addresses)
+  '21': '2048' // /21 (2,048 addresses)
+  '22': '1024' // /22 (1,024 addresses)
+  '23': '512' // /23 (512 addresses)
+  '24': '256' // /24 (256 addresses)
+  '25': '128' // /25 (128 addresses)
+  '26': '64' // /26 (64 addresses)
+  '27': '32' // /27 (32 addresses)
+  '28': '16' // /28 (16 addresses)
+  '29': '8' // /29 (8 addresses)
+  '30': '4' // /30 (4 addresses)
+  '31': '2' // /31 (2 addresses)
+}
+
+@export()
+@description('Returns the number of hosts available for a given CIDR prefix.')
+func getCidrHostCount(cidrPrefix int) string => getCidrHostCounts()[string(cidrPrefix)]
